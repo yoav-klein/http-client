@@ -6,7 +6,7 @@ RESET=\033[0m
 
 CC=gcc
 CXX=g++
-FLAGS=
+FLAGS=-g
 
 SRC_DIR=src
 INC_DIR=include

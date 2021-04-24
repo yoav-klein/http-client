@@ -30,8 +30,11 @@
 
 
 
+
 struct http_response* handle_redirect_get(struct http_response* hresp, char* custom_headers)
-{
+{/*
+	struct http_response response;
+	struct http_headers head;
 	if(hresp->status_code_int > 300 && hresp->status_code_int < 399)
 	{
 		char *token = strtok(hresp->response_headers, "\r\n");
@@ -40,17 +43,18 @@ struct http_response* handle_redirect_get(struct http_response* hresp, char* cus
 			if(str_contains(token, "Location:"))
 			{
 				/* Extract url */
-				char *location = str_replace("Location: ", "", token);
+			/*	char *location = str_replace("Location: ", "", token);
 				return http_get(location, custom_headers);
 			}
 			token = strtok(NULL, "\r\n");
 		}
 	}
 	else
-	{
+	{*/
 		/* We're not dealing with a redirect, just return the same structure */
-		return hresp;
+		/*return hresp;
 	}
+*/
 }
 
 
@@ -94,46 +98,41 @@ int create_connection(struct parsed_url *purl)
 
 
 /*
-	get_header_value(char* headers, const char* key)
+	get_header_value(struct http_headers* header, const char* key)
 	
-	looks for a header named 'key', allocates memory for its value
-	and returns it.
-	
-	user must free allocated space
+	looks for a header named 'key' and returns its value.
 	
 	if no such header found, returns NULL
 */
 
-char* get_header_value(char* headers, const char* key)
+char* get_header_value(struct http_headers* headers, const char* key)
 {
-	char* key_pos = strstr(headers, key);
-	if(NULL == key_pos)
+	int i = 0;
+	while(NULL != headers->headers[i])
 	{
-		return NULL;
+		char *current = headers->headers[i];
+		char* key_pos = strstr(current, key);
+		if(NULL == key_pos)
+		{
+			++i;
+			continue;
+		}
+		
+		
+		char *val_pos = index(current, ':') + 2; /* 2 for the [: ]*/
+		return val_pos;	
 	}
-	char *val_pos = index(key_pos, ':') + 2; /* 2 for the [: ]*/
-	char* end_val_pos = index(val_pos, '\r');
 	
-	size_t value_size = (size_t)end_val_pos - (size_t)val_pos;
 	
-	char* ret_str = (char*)malloc(value_size + 1);
-	if(NULL == ret_str)
-	{
-		perror("get_header_value");
-		return NULL;
-	}
+	return NULL;
 	
-	strncpy(ret_str, val_pos, value_size);	 
-	ret_str[value_size] = 0;
-	
-	return ret_str;
 }
 
-int get_response_status(char* response_headers)
+int get_response_status(int sock)
 {
 	int ret_val = 0;
 	/* get_until allocates memory */
-	char *status_line = get_until(response_headers, "\r\n");
+	char *status_line = read_until(sock, "\r\n", 0);
 	if(NULL == status_line)
 	{
 		return -1;
@@ -150,10 +149,56 @@ int get_response_status(char* response_headers)
 	
 	ret_val = atoi(status_text);
 	free(status_line);
+	
 	return ret_val; 
 }
 
-char *read_until(int sock, const char *delim)
+
+char *read_until_simulation(const char *text, const char *delim, int include_delim)
+{
+	char *ret_buf = NULL;
+	char buffer[BUFSIZ];
+	int read_bytes = 0;
+	int found = 0;
+	int counter = 0;
+	int i = 0;
+	while(*text && !found)
+	{
+		buffer[read_bytes] = text[read_bytes];
+		if(buffer[read_bytes] == delim[counter])
+		{
+			++counter;
+			if(strlen(delim) == counter)
+			{
+				found = 1;
+			}
+		}
+		else
+		{
+			counter = 0;
+		}
+		++read_bytes;	
+	}
+	buffer[read_bytes] = 0;
+	
+	
+	if(!include_delim)
+	{
+		buffer[read_bytes - strlen(delim)] = 0;
+	}
+	
+	if(1 == found)
+	{
+		
+		ret_buf = (char*)malloc(strlen(buffer));
+		strcpy(ret_buf, buffer);	
+		return ret_buf;
+	}
+	
+	return NULL;
+}
+
+char *read_until(int sock, const char *delim, int include_delim)
 {
 	char *ret_buf = NULL;
 	char buffer[BUFSIZ];
@@ -186,6 +231,11 @@ char *read_until(int sock, const char *delim)
 		++read_bytes;	
 	}
 	buffer[read_bytes] = 0;
+	
+	if(!include_delim)
+	{
+		buffer[read_bytes - strlen(delim)] = 0;
+	}
 	
 	if(1 == found)
 	{
@@ -250,6 +300,7 @@ void init_lut()
 
 unsigned int convert_hex_to_int(unsigned char* hex_str)
 {
+	
 	unsigned int result = 0;
 	
 	init_lut();
@@ -262,10 +313,26 @@ unsigned int convert_hex_to_int(unsigned char* hex_str)
 	return result;
 }
 
-
-char *read_response_headers(int sock)
+char *read_status_line(int sock)
 {
-	return read_until(sock, "\r\n\r\n");
+
+}
+
+struct http_headers *read_response_headers(int sock)
+{
+	
+	struct http_headers *headers = (struct http_headers*)malloc(sizeof(*headers));
+	int i = 0;
+	do
+	{
+		headers->headers[i] = read_until(sock, "\r\n", 0);
+		++i;
+	}
+	while(strlen(headers->headers[i - 1]));
+	
+	headers->headers[i - 1] = NULL;
+	
+	return headers;
 }
 
 
@@ -276,7 +343,7 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 	int is_chunked = 0;
 	int response_status = 0;
 	char* response_data = NULL;
-	char* response_headers = NULL;
+	struct http_headers* response_headers = NULL;
 	
 	/* Parse url */
 	if(purl == NULL || req_headers == NULL)
@@ -322,6 +389,14 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 		sent += tmpres;
 	}
 	
+	response_status = get_response_status(sock);
+	if(response_status < 200 || response_status > 299)
+	{
+		printf("ERROR: Line: %d response status: %d\n", __LINE__, response_status);
+		
+		return NULL;
+	} 
+	
 	/* Read headers into response headers */
 	response_headers = read_response_headers(sock);
 	if(NULL == response_headers)
@@ -332,19 +407,14 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 	}
 	
 	/* check response status code */
-	response_status = get_response_status(response_headers);
-	if(response_status < 200 || response_status > 299)
-	{
-		printf("response status: %d\n", response_status);
-		
-		return NULL;
-	} 
+	
+	
 	
 	hresp->response_headers = response_headers;
 	hresp->status_code_int = response_status;
 	
 	/* Check if data is chunked */
-	char *transfer_encoding_header = get_header_value(response_headers, "Transfer-Encoding");
+	/*char *transfer_encoding_header = get_header_value(response_headers, "Transfer-Encoding");
 	if(NULL == transfer_encoding_header)
 	{
 		printf("Transfer-Encoding header doesn't exist");
@@ -354,7 +424,7 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 		is_chunked = 1;
 		
 		free(transfer_encoding_header);
-	}
+	}*/
 	
 	/*
 	
