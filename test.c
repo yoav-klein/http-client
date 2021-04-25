@@ -4,6 +4,7 @@
 #include <string.h> /* strcmp */
 #include <stdlib.h> /* stdlib */
 #include "http-client.h"
+#include "utils.h" /* convert_hex_to_int */
 
 
 char *read_until_simulation(const char *text, const char *delim, int include_delim);
@@ -99,20 +100,6 @@ int convert_hex_to_int_check()
 
 }
 
-int read_until_check()
-{
-	char *res = NULL;
-	res = read_until_simulation("My name is yoav klein", "yo", 1);
-	if(strcmp(res, "My name is yo"))
-	{
-		return 0;
-	}
-	
-	res = read_until_simulation("\r\n", "\r\n", 0);
-	
-	
-	return 1;
-}
 
 int main()
 {
@@ -125,7 +112,7 @@ int main()
 
 
 	/*TEST(convert_hex_to_int_check);*/
-	/*TEST(read_until_check);*/
+	
 	
 	return res;
 }

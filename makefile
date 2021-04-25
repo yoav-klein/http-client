@@ -33,7 +33,7 @@ $(MAIN).out: $(OBJ_DIR)/$(MAIN).o $(OBJS)
 # create the directories if don't exist
 $(OBJS): | $(OBJ_DIR)
 $(OBJ_DIR)/$(TEST).o: | $(OBJ_DIR)
-$(OBJ_DIR)/$(MAIN).o: | (OBJ_DIR)
+$(OBJ_DIR)/$(MAIN).o: | $(OBJ_DIR)
 
 $(DEPS) : | $(DEP_DIR)
 $(DEP_DIR)/$(MAIN).d: | $(DEP_DIR)

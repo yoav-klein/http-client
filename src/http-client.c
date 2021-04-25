@@ -26,36 +26,9 @@
 #include <errno.h>
 #include "stringx.h" 
 #include "urlparser.h" /* parseurl */
+#include "utils.h" /* init_lut */
 #include "http-client.h" 
 
-
-
-
-struct http_response* handle_redirect_get(struct http_response* hresp, char* custom_headers)
-{/*
-	struct http_response response;
-	struct http_headers head;
-	if(hresp->status_code_int > 300 && hresp->status_code_int < 399)
-	{
-		char *token = strtok(hresp->response_headers, "\r\n");
-		while(token != NULL)
-		{
-			if(str_contains(token, "Location:"))
-			{
-				/* Extract url */
-			/*	char *location = str_replace("Location: ", "", token);
-				return http_get(location, custom_headers);
-			}
-			token = strtok(NULL, "\r\n");
-		}
-	}
-	else
-	{*/
-		/* We're not dealing with a redirect, just return the same structure */
-		/*return hresp;
-	}
-*/
-}
 
 
 int create_connection(struct parsed_url *purl)
@@ -128,195 +101,86 @@ char* get_header_value(struct http_headers* headers, const char* key)
 	
 }
 
-int get_response_status(int sock)
-{
-	int ret_val = 0;
-	/* get_until allocates memory */
-	char *status_line = read_until(sock, "\r\n", 0);
-	if(NULL == status_line)
-	{
-		return -1;
-	}
+/* 
+	reads from the socket into a buffer until delim is encountered
+	if include_delim is non-zero, the delim is included in the returned data
 	
-	char *pos = index(status_line, ' ');
-	char* status_text = ++pos;
-	
-	while(' ' != *pos)
-	{
-		++pos;
-	}
-	*pos = 0;
-	
-	ret_val = atoi(status_text);
-	free(status_line);
-	
-	return ret_val; 
-}
+	Allocates memory for the buffer.
+ */
 
-
-char *read_until_simulation(const char *text, const char *delim, int include_delim)
+char *read_chunked_data(int sock)
 {
-	char *ret_buf = NULL;
-	char buffer[BUFSIZ];
-	int read_bytes = 0;
-	int found = 0;
-	int counter = 0;
-	int i = 0;
-	while(*text && !found)
-	{
-		buffer[read_bytes] = text[read_bytes];
-		if(buffer[read_bytes] == delim[counter])
-		{
-			++counter;
-			if(strlen(delim) == counter)
-			{
-				found = 1;
-			}
-		}
-		else
-		{
-			counter = 0;
-		}
-		++read_bytes;	
-	}
-	buffer[read_bytes] = 0;
-	
-	
-	if(!include_delim)
-	{
-		buffer[read_bytes - strlen(delim)] = 0;
-	}
-	
-	if(1 == found)
+	int chunk_size = -1;
+	while(0 != chunk_size)
 	{
 		
-		ret_buf = (char*)malloc(strlen(buffer));
-		strcpy(ret_buf, buffer);	
-		return ret_buf;
-	}
-	
-	return NULL;
-}
-
-char *read_until(int sock, const char *delim, int include_delim)
-{
-	char *ret_buf = NULL;
-	char buffer[BUFSIZ];
-	int read_bytes = 0;
-	int found = 0;
-	int counter = 0;
-	
-	while(!found)
-	{
-		
-		int n = recv(sock, (buffer + read_bytes), 1, 0);
-		if(-1 == n)
+		char *size_str = read_until(sock, "\r\n", 0);
+		char *chunk = NULL;
+		if(NULL == size_str)
 		{
-			perror("read_until");
-			
 			return NULL;
 		}
-		if(buffer[read_bytes] == delim[counter])
+		chunk_size = convert_hex_to_int(size_str);
+		
+		chunk = read_all(sock, chunk_size);
+		if(NULL == chunk)
 		{
-			++counter;
-			if(strlen(delim) == counter)
-			{
-				found = 1;
-			}
+			return NULL;
+		}
+		
+		
+	}
+}
+
+void *read_stream(int sock)
+{
+
+}
+
+char *read_unchunked_data(int sock, struct http_headers *headers)
+{
+	/* find content length */
+	char *buffer = NULL;
+	int length = 0;
+	char *length_str = get_header_value(headers, "Content-Length");
+	if(NULL == length_str)
+	{
+		return NULL;
+	}
+	
+	length = atoi(length_str);
+	buffer = read_all(sock, length);
+	
+	return buffer;
+}
+
+char *read_data(int sock, struct http_headers *headers, int is_stream)
+{
+	char *buffer = NULL;
+	/* check if data is chunked */
+	char *transfer_encoding_header = get_header_value(headers, "Transfer-Encoding");
+	if(NULL == transfer_encoding_header || strcmp("chunked", transfer_encoding_header)) /* if no Transfer-Encoding header, or non-equal to chunked*/
+	{
+		buffer = read_unchunked_data(sock, headers);
+	}
+	else if(!strcmp("chunked", transfer_encoding_header))
+	{
+		if(is_stream)
+		{
+			read_stream(sock);
 		}
 		else
 		{
-			counter = 0;
+			buffer = read_chunked_data(sock);
 		}
-		++read_bytes;	
-	}
-	buffer[read_bytes] = 0;
-	
-	if(!include_delim)
-	{
-		buffer[read_bytes - strlen(delim)] = 0;
 	}
 	
-	if(1 == found)
-	{
-		ret_buf = (char*)malloc(strlen(buffer));
-		strcpy(ret_buf, buffer);	
-		return ret_buf;
-	}
-	
-	return NULL;
+	return buffer;
 }
 
 /*
-void process_buffer(char* buffer, long int recived_len, int is_first_buffer)
-{
-	fprintf(stderr, "process buffer: is_first_buffer: %d\n", is_first_buffer);
-	struct http_response* hresp = NULL;
-	int is_chunked = 0;
-		
-	int written_bytes = 0;
-	buffer[recived_len] = '\0';
-	
-	if(is_first_buffer)  
-	{
-		hresp = process_http_headers(buffer);
-		char* transfer_encoding = NULL;
-		if(transfer_encoding = get_header_value(buffer, "Transfer-Encoding"))
-		{
-			fprintf(stderr, "DEBUG: Transfer-Encoding exists !!");
-			char* end = index(transfer_encoding, '\r');
-			fprintf(stderr, "DEBUG: Length of value: %d\n", (int)(end - transfer_encoding));
-		}
-	}	
-	while(written_bytes < recived_len)
-	{
-		/*written_bytes += write(1, (buffer + written_bytes), (recived_len - written_bytes));*/
-	/*}
-	fprintf(stderr, "Read: %li\n", recived_len);
-}*/
-
-#define ASCII_SIZE 127
-unsigned char ascii_to_digit[ASCII_SIZE] = { 0 };
-
-void init_lut()
-{
-	ascii_to_digit['0'] = 0;
-	ascii_to_digit['1'] = 1;
-	ascii_to_digit['2'] = 2;
-	ascii_to_digit['3'] = 3;
-	ascii_to_digit['4'] = 4;
-	ascii_to_digit['5'] = 5;
-	ascii_to_digit['6'] = 6;
-	ascii_to_digit['7'] = 7;
-	ascii_to_digit['8'] = 8;
-	ascii_to_digit['9'] = 9;
-	ascii_to_digit['a'] = 10;
-	ascii_to_digit['b'] = 11;
-	ascii_to_digit['c'] = 12;
-	ascii_to_digit['d'] = 13;
-	ascii_to_digit['e'] = 14;
-	ascii_to_digit['f'] = 15;
-}
-
-unsigned int convert_hex_to_int(unsigned char* hex_str)
-{
-	
-	unsigned int result = 0;
-	
-	init_lut();
-	while(*hex_str != '\r' && *hex_str != '\n')
-	{
-		result = (result << 4) | ascii_to_digit[*hex_str];	
-		++hex_str;
-	}
-	
-	return result;
-}
-
-char *read_status_line(int sock)
-{
-
-}
+	reads the response headers from the socket
+*/
 
 struct http_headers *read_response_headers(int sock)
 {
@@ -335,9 +199,45 @@ struct http_headers *read_response_headers(int sock)
 	return headers;
 }
 
-
-struct http_response* http_req(char *req_headers, struct parsed_url *purl)
+/*
+	reads the status line of the response and returns the char* to it
+*/
+char *read_status_line(int sock)
 {
+	int ret_val = 0;
+	/* get_until allocates memory */
+	char *status_line = read_until(sock, "\r\n", 0);
+	if(NULL == status_line)
+	{
+		return NULL;
+	}
+	
+	return status_line;
+}
+
+/*
+	gets the response status from the status_line and converts it to int
+*/
+int get_response_status(const char *status_line)
+{
+	int status_code = 0;
+	char *pos = index(status_line, ' ');
+	char* status_text = ++pos;
+	
+	while(' ' != *pos)
+	{
+		++pos;
+	}
+	*pos = 0;
+	
+	status_code = atoi(status_text);
+	
+	return status_code; 
+}
+
+struct http_response* http_req(char *req_headers, struct parsed_url *purl, int is_stream)
+{
+	char *data = NULL;
 	int tmpres = 0;
 	int sock = 0;
 	int is_chunked = 0;
@@ -389,13 +289,19 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 		sent += tmpres;
 	}
 	
-	response_status = get_response_status(sock);
+	/* read the status line */
+	hresp->status_text = read_status_line(sock);
+	
+	/* extract the status code as integer */
+	response_status = get_response_status(hresp->status_text);
+	/* check response status code */
 	if(response_status < 200 || response_status > 299)
 	{
 		printf("ERROR: Line: %d response status: %d\n", __LINE__, response_status);
 		
 		return NULL;
 	} 
+	hresp->status_code_int = response_status;
 	
 	/* Read headers into response headers */
 	response_headers = read_response_headers(sock);
@@ -406,26 +312,15 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 		return NULL;
 	}
 	
-	/* check response status code */
-	
-	
-	
 	hresp->response_headers = response_headers;
-	hresp->status_code_int = response_status;
 	
-	/* Check if data is chunked */
-	/*char *transfer_encoding_header = get_header_value(response_headers, "Transfer-Encoding");
-	if(NULL == transfer_encoding_header)
+	data = read_data(sock, hresp->response_headers, is_stream);
+	if(NULL == data)
 	{
-		printf("Transfer-Encoding header doesn't exist");
+		return NULL;
 	}
-	else if(!strcmp("chunked", transfer_encoding_header))
-	{
-		is_chunked = 1;
-		
-		free(transfer_encoding_header);
-	}*/
 	
+	hresp->body = data;
 	/*
 	
 	char buffer[BUFSIZ];
@@ -469,7 +364,7 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 /*
 	Makes a HTTP GET request to the given url
 */
-struct http_response* http_get(char *url, char *custom_headers)
+struct http_response* http_get(char *url, char *custom_headers, int is_stream)
 {
 	/* Parse url */
 	struct parsed_url *purl = parse_url(url);
@@ -525,10 +420,9 @@ struct http_response* http_get(char *url, char *custom_headers)
 	http_headers = (char*)realloc(http_headers, strlen(http_headers) + 1);
 
 	/* Make request and return response */
-	struct http_response *hresp = http_req(http_headers, purl);
+	struct http_response *hresp = http_req(http_headers, purl, is_stream);
 
-	/* Handle redirect */
-	return handle_redirect_get(hresp, custom_headers);
+	return hresp;
 }
 
 
