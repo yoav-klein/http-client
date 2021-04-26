@@ -8,7 +8,7 @@ int main()
 	int i = 0;
 	struct http_response *response = NULL;
 	
-	response = http_get("https://www.walla.co.il", NULL, 0);
+	response = http_get("https://www.google.co.il", NULL, 0);
 	
 	printf("status line: %s\n", response->status_text);
 	printf("status: %d\n", response->status_code_int);

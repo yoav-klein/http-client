@@ -9,15 +9,20 @@
 
 unsigned char ascii_to_digit[ASCII_SIZE] = { 0 };
 
-unsigned int convert_hex_to_int(unsigned char* hex_str)
+long int convert_hex_to_int(const unsigned char* hex_str)
 {
-	
 	unsigned int result = 0;
 	
 	init_lut();
-	while(*hex_str != '\r' && *hex_str != '\n')
+	
+	while(*hex_str)
 	{
+		if(!((*hex_str <= '9' && *hex_str >= '0') || (*hex_str <= 'f' && *hex_str >= 'a')))
+		{
+			return -1;
+		}
 		result = (result << 4) | ascii_to_digit[*hex_str];	
+		
 		++hex_str;
 	}
 	

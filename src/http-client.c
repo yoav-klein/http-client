@@ -30,6 +30,12 @@
 #include "http-client.h" 
 
 
+struct chunk
+{
+	size_t size;
+	char *data;
+};
+
 
 int create_connection(struct parsed_url *purl)
 {
@@ -108,33 +114,129 @@ char* get_header_value(struct http_headers* headers, const char* key)
 	Allocates memory for the buffer.
  */
 
+struct chunk read_chunk(int sock)
+{
+	struct chunk chunk = { 0 };
+	int read_bytes = 0;
+	int chunk_size = 0;
+	
+	char *chunk_size_str = NULL;
+	chunk_size_str = read_until(sock, "\r\n", 0);
+	if(NULL == chunk_size_str)
+	{
+		chunk.data = NULL;
+		return chunk;
+	}
+	
+	chunk_size = convert_hex_to_int(chunk_size_str);
+	if(-1 == chunk_size)
+	{
+		return chunk;
+	}
+	chunk.size = (size_t)chunk_size;
+	
+/*	read_until allocates memory*/
+	free(chunk_size_str);
+
+	#define MAX_CHUNK (20000)
+	char *buffer = malloc(MAX_CHUNK);
+	if(NULL == buffer)
+	{
+		perror("read_chunk");
+		
+		chunk.data = NULL;
+		return chunk;
+	}
+	
+	buffer = read_all(sock, chunk_size);
+	
+	/* verify crlf after chunk */
+	char crlf[3];
+	int n = read(sock, &crlf, 2);
+	if(2 != n)
+	{
+		perror("read_chunk: read crlf");
+
+		chunk.data = NULL;
+		return chunk;
+	}
+	crlf[2] = 0;
+	
+	if(strcmp(crlf, "\r\n"))
+	{
+		fprintf(stderr, "read_chunk: didn't get crlf after chunk\n");
+		
+		chunk.data = NULL;
+		return chunk;
+	}	
+	
+	chunk.data = buffer;
+	return chunk;
+
+}
+
 char *read_chunked_data(int sock)
 {
-	int chunk_size = -1;
-	while(0 != chunk_size)
+	char *buffer = NULL;
+	size_t total_size = 0;
+	struct chunk current_chunk = { 0 };
+		
+	do
 	{
-		
-		char *size_str = read_until(sock, "\r\n", 0);
-		char *chunk = NULL;
-		if(NULL == size_str)
-		{
-			return NULL;
-		}
-		chunk_size = convert_hex_to_int(size_str);
-		
-		chunk = read_all(sock, chunk_size);
-		if(NULL == chunk)
+		/* read current chunk */
+		current_chunk = read_chunk(sock);
+		if(NULL == current_chunk.data)
 		{
 			return NULL;
 		}
 		
+		buffer = realloc(buffer, total_size + current_chunk.size);
+		/* allocate new buffer */
+		if(NULL == buffer)
+		{
+			perror("read_chunked_data: realloc");
+			
+			return NULL;
+		}
 		
-	}
+		buffer[100] = 'a';
+		/* copy the current chunk to end of buffer */
+		if(NULL == memcpy(buffer + total_size, current_chunk.data, current_chunk.size))
+		{
+			perror("read_chunked_data: memcpy");
+			
+			return NULL;
+		}
+		
+		total_size += current_chunk.size;
+		
+	} 
+	while(current_chunk.size != 0);
+	
+	return buffer;
 }
 
 void *read_stream(int sock)
 {
-
+/*	char *buffer = NULL;*/
+/*	size_t total_size = 0;*/
+/*	int should_run = 1;*/
+/*	*/
+/*	while(should_run)*/
+/*	{*/
+/*		char *chunk = read_chunk(sock);*/
+/*		if(NULL == chunk)*/
+/*		{*/
+/*			return NULL;*/
+/*		}*/
+		
+		/* reallocated buffer */
+/*		if(NULL == realloc(buffer, total_size + chunk_size))*/
+/*		{*/
+/*		*/
+/*		}*/
+/*	*/
+/*	}*/
 }
 
 char *read_unchunked_data(int sock, struct http_headers *headers)

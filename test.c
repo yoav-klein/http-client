@@ -19,7 +19,7 @@ struct http_headers *get_headers()
 	struct http_response *resp = NULL;
 	int i = 0;
 	
-	resp = http_get("http://www.google.com", "Accept: */*\r\n");
+	resp = http_get("http://www.google.com", "Accept: */*\r\n", 0);
 	while(resp->response_headers->headers[i] != NULL)
 	{
 		++i;
@@ -59,7 +59,7 @@ int get_response_headers_check()
 	struct http_response *resp = NULL;
 	int i = 0;	
 	
-	resp = http_get("http://www.google.com", "Accept: */*\r\n");
+	resp = http_get("http://www.google.com", "Accept: */*\r\n", 0);
 	while(resp->response_headers->headers[i] != NULL)
 	{
 		++i;
@@ -87,14 +87,19 @@ int get_response_status_check()
 
 int convert_hex_to_int_check()
 {
-
-	unsigned int res = convert_hex_to_int("1a\n");
-	printf("res: %u\n", res);
+	
+	long int res = convert_hex_to_int("1a");
+	
 	if(res != 26)
 	{
 		return 0;
 	}
 	
+	res = convert_hex_to_int("13av");
+	if(-1 != res)
+	{
+		return 0;
+	}
 	
 	return 1;
 
@@ -106,12 +111,12 @@ int main()
 	
 	int res = 0;
 	
-	TEST(get_header_value_check);
-	/*TEST(get_response_status_check);*/
-	TEST(get_response_headers_check);
+/*	TEST(get_header_value_check);*/
+/*	TEST(get_response_status_check);*/
+/*	TEST(get_response_headers_check);*/
 
 
-	/*TEST(convert_hex_to_int_check);*/
+	TEST(convert_hex_to_int_check);
 	
 	
 	return res;
