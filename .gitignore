@@ -2,3 +2,5 @@ lab/
 *.out
 *.o
 *.d
+*.hex
+log
