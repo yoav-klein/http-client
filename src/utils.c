@@ -70,7 +70,7 @@ char *read_until(int sock, const char *delim, int include_delim)
 	
 	if(1 == found)
 	{
-		ret_buf = (char*)malloc(strlen(buffer));
+		ret_buf = (char*)malloc(strlen(buffer) + 1);
 		strcpy(ret_buf, buffer);	
 		return ret_buf;
 	}
