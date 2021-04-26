@@ -134,7 +134,7 @@ struct chunk read_chunk(int sock)
 	}
 	chunk.size = (size_t)chunk_size;
 	
-/*	read_until allocates memory*/
+	/* read_until allocates memory*/
 	free(chunk_size_str);
 
 	#define MAX_CHUNK (20000)
@@ -200,7 +200,6 @@ char *read_chunked_data(int sock)
 			return NULL;
 		}
 		
-		buffer[100] = 'a';
 		/* copy the current chunk to end of buffer */
 		if(NULL == memcpy(buffer + total_size, current_chunk.data, current_chunk.size))
 		{
@@ -222,25 +221,29 @@ char *read_chunked_data(int sock)
 
 void *read_stream(int sock)
 {
-/*	char *buffer = NULL;*/
-/*	size_t total_size = 0;*/
-/*	int should_run = 1;*/
-/*	*/
-/*	while(should_run)*/
-/*	{*/
-/*		char *chunk = read_chunk(sock);*/
-/*		if(NULL == chunk)*/
-/*		{*/
-/*			return NULL;*/
-/*		}*/
+	char *buffer = NULL;
+	size_t total_size = 0;
+	struct chunk current_chunk = { 0 };
 		
-		/* reallocated buffer */
-/*		if(NULL == realloc(buffer, total_size + chunk_size))*/
-/*		{*/
-/*		*/
-/*		}*/
-/*	*/
-/*	}*/
+	while(1)
+	{	
+		ssize_t written_bytes = 0;
+		/* read current chunk */
+		current_chunk = read_chunk(sock);
+		if(NULL == current_chunk.data)
+		{
+			return NULL;
+		}
+		
+		while(written_bytes < current_chunk.size)
+		{
+			ssize_t n = write(1, (current_chunk.data + written_bytes), (current_chunk.size - written_bytes));
+			written_bytes += n;
+		}
+		
+		free(current_chunk.data);
+	} 
+	
 }
 
 char *read_unchunked_data(int sock, struct http_headers *headers)
