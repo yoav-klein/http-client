@@ -68,7 +68,7 @@ char *read_until(int sock, const char *delim, int include_delim)
 		buffer[read_bytes - strlen(delim)] = 0;
 	}
 	
-	if(1 == found)
+	if(strlen(buffer) && 1 == found)
 	{
 		ret_buf = (char*)malloc(strlen(buffer) + 1);
 		strcpy(ret_buf, buffer);	

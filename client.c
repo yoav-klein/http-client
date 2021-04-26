@@ -4,19 +4,12 @@
 #include "http-client.h" /* http_get*/
 
 
-int main(int argc, char **argv)
+void get(char *url, char *custom_headers)
 {
 	int i = 0;
 	struct http_response *response = NULL;
 	
-	if(NULL == argv[1])
-	{
-		fprintf(stderr, "Usage: http-client.out <URL>");
-		
-		exit(0);
-	}
-	
-	response = http_get(argv[1], NULL, 1);
+	response = http_get(url, custom_headers);
 	
 	fprintf(stderr, "status: %d\n", response->status_code_int);
 	
@@ -31,6 +24,37 @@ int main(int argc, char **argv)
 	printf("%s", response->body);
 	
 	http_response_free(response);
+}
+
+void stream(char *url, char *custom_headers)
+{
+	struct http_handle *handle = init_connection(url, custom_headers);
+	
+	struct chunk chunk = { 0 };
+	do
+	{
+		chunk = read_chunk(handle->sock);
+		fprintf(stderr, "chunk size: %ld\n", chunk.size);
+	}
+	while(chunk.size > 0);
+	
+	http_handle_free(handle);
+
+}
+
+int main(int argc, char **argv)
+{
+	if(NULL == argv[1])
+	{
+		fprintf(stderr, "Usage: http-client.out <URL>\n");
+		
+		exit(0);
+	}
+	
+	/*get(argv[1], NULL);
+	*/
+	
+	stream(argv[1], NULL);
 	
 	return 0;
 }

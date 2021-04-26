@@ -1,0 +1,9 @@
+
+0.5
+----
+- Adding struct http_handle
+- Adding function init_connection that opens the socket,
+  sends the request to the server, reads the headers, populates
+  a http_handle struct and returns it.
+  
+  This is before creating a function "get_chunk" that the user can call 

@@ -30,11 +30,7 @@
 #include "http-client.h" 
 
 
-struct chunk
-{
-	size_t size;
-	char *data;
-};
+
 
 
 int create_connection(struct parsed_url *purl)
@@ -74,14 +70,6 @@ int create_connection(struct parsed_url *purl)
 	return sock;
 }
 
-
-/*
-	get_header_value(struct http_headers* header, const char* key)
-	
-	looks for a header named 'key' and returns its value.
-	
-	if no such header found, returns NULL
-*/
 
 char* get_header_value(struct http_headers* headers, const char* key)
 {
@@ -267,25 +255,18 @@ char *read_unchunked_data(int sock, struct http_headers *headers)
 	return buffer;
 }
 
-char *read_data(int sock, struct http_headers *headers, int is_stream)
+char *read_data(struct http_handle *handle)
 {
 	char *buffer = NULL;
 	/* check if data is chunked */
-	char *transfer_encoding_header = get_header_value(headers, "Transfer-Encoding");
+	char *transfer_encoding_header = get_header_value(handle->response->response_headers, "Transfer-Encoding");
 	if(NULL == transfer_encoding_header || strcmp("chunked", transfer_encoding_header)) /* if no Transfer-Encoding header, or non-equal to chunked*/
 	{
-		buffer = read_unchunked_data(sock, headers);
+		buffer = read_unchunked_data(handle->sock, handle->response->response_headers);
 	}
 	else if(!strcmp("chunked", transfer_encoding_header))
 	{
-		if(is_stream)
-		{
-			read_stream(sock);
-		}
-		else
-		{
-			buffer = read_chunked_data(sock);
-		}
+		buffer = read_chunked_data(handle->sock);
 	}
 	
 	return buffer;
@@ -297,19 +278,25 @@ char *read_data(int sock, struct http_headers *headers, int is_stream)
 
 struct http_headers *read_response_headers(int sock)
 {
+	int i = 0;
 	char *current_header = NULL;
 	struct http_headers *headers = (struct http_headers*)malloc(sizeof(*headers));
-	int i = 0;
+	if(NULL == headers)
+	{
+		perror("read_response_headers: malloc");
+		
+		return NULL;
+	}
 	do
 	{
 		current_header = read_until(sock, "\r\n", 0);
 		headers->headers[i] = current_header;
 		++i;
 	}
-	while(strlen(current_header));
+	while(NULL != current_header/*strlen(current_header)*/);
 	
-	headers->headers[i - 1] = NULL;
-	
+	/*headers->headers[i - 1] = NULL;
+	*/
 	return headers;
 }
 
@@ -349,7 +336,7 @@ int get_response_status(const char *status_line)
 	return status_code; 
 }
 
-struct http_response* http_req(char *req_headers, struct parsed_url *purl, int is_stream)
+static struct http_handle *init_connection_internal(char *req_headers, struct parsed_url *purl)
 {
 	char *data = NULL;
 	int tmpres = 0;
@@ -357,12 +344,21 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl, int i
 	int is_chunked = 0;
 	int response_status = 0;
 	char* response_data = NULL;
+	
 	struct http_headers* response_headers = NULL;
+	struct http_handle *handle = malloc(sizeof(*handle));
+	if(NULL == handle)
+	{
+		perror("init_connection: malloc");
+		
+		return NULL;
+	}
 	
 	/* Parse url */
 	if(purl == NULL || req_headers == NULL)
 	{
 		printf("Unable to parse url");
+		
 		return NULL;
 	}
 	
@@ -371,6 +367,7 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl, int i
 	if(hresp == NULL)
 	{
 		printf("Unable to allocate memory for htmlcontent.");
+		
 		return NULL;
 	}
 	
@@ -379,7 +376,6 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl, int i
 	
 	hresp->body = NULL;
 	hresp->response_headers = NULL;
-	hresp->status_code = NULL;
 	hresp->status_text = NULL;
 	
 	/* open TCP socket */
@@ -428,48 +424,45 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl, int i
 	
 	hresp->response_headers = response_headers;
 	
-	data = read_data(sock, hresp->response_headers, is_stream);
+	handle->response = hresp;
+	handle->sock = sock;
+	
+	return handle;
+}
+
+struct http_response* http_req(char *req_headers, struct parsed_url *purl)
+{
+	struct http_handle *handle = init_connection_internal(req_headers, purl);
+	struct http_response *response = NULL;
+	char *data = NULL;
+	
+	data = read_data(handle);
 	if(NULL == data)
 	{
 		return NULL;
 	}
 	
-	hresp->body = data;
+	handle->response->body = data;
+	response = handle->response;
 	
 	/* Close socket */
 	#ifdef _WIN32
-		closesocket(sock);
+		closesocket(handle->sock);
 	#else
-		close(sock);
+		close(handle->sock);
 	#endif
-
 	
-
+	/* free the handle struct */
+	free(handle);
+	
+	
 	/* Return response */
-	return hresp;
+	return response;
 
 }
 
-/*
-	Makes a HTTP GET request to the given url
-*/
-struct http_response* http_get(char *url, char *custom_headers, int is_stream)
+char *init_headers(const char *custom_headers, struct parsed_url *purl)
 {
-	/* Parse url */
-	struct parsed_url *purl = parse_url(url);
-	if(purl == NULL)
-	{
-		printf("Unable to parse url");
-		return NULL;
-	}
-
-	/* DEBUG */
-	
-	/*fprintf(stderr, "host: %s\nip: %s\nport: %s\npath: %s\n", purl->host, purl->ip, purl->port, purl->path);
-	*/
-	/* END DEBUG*/
-	
-	/* Declare variable */
 	char *http_headers = (char*)malloc(1024);
 
 	/* Build query/headers */
@@ -507,12 +500,47 @@ struct http_response* http_get(char *url, char *custom_headers, int is_stream)
 		sprintf(http_headers, "%s\r\n", http_headers);
 	}
 	http_headers = (char*)realloc(http_headers, strlen(http_headers) + 1);
+	
+	return http_headers;
+}
 
+struct http_handle *init_connection(char *url, char *custom_headers)
+{
+	/* Parse url */
+	struct parsed_url *purl = parse_url(url);
+	if(purl == NULL)
+	{
+		printf("Unable to parse url");
+		return NULL;
+	}
+
+	char *request_headers = init_headers(custom_headers, purl);
+	
+	return init_connection_internal(request_headers, purl);
+}
+
+/*
+	Makes a HTTP GET request to the given url
+*/
+struct http_response* http_get(char *url, char *custom_headers)
+{
+
+	/* Parse url */
+	struct parsed_url *purl = parse_url(url);
+	if(purl == NULL)
+	{
+		printf("Unable to parse url");
+		return NULL;
+	}
+
+	char *request_headers = init_headers(custom_headers, purl);
+	
 	/* Make request and return response */
-	struct http_response *hresp = http_req(http_headers, purl, is_stream);
+	struct http_response *hresp = http_req(request_headers, purl);
 
 	return hresp;
 }
+
 
 
 /*
@@ -529,13 +557,19 @@ void free_headers(struct http_headers *headers)
 	}
 }
 
+void http_handle_free(struct http_handle *handle)
+{
+	http_response_free(handle->response);
+	
+	free(handle);
+}
+
 void http_response_free(struct http_response *hresp)
 {
 	if(hresp != NULL)
 	{
 		/*if(hresp->request_uri != NULL) parsed_url_free(hresp->request_uri);*/
 		if(hresp->body != NULL) free(hresp->body);
-		if(hresp->status_code != NULL) free(hresp->status_code);
 		if(hresp->status_text != NULL) free(hresp->status_text);
 		if(hresp->request_headers != NULL) free(hresp->request_headers);
 		if(hresp->response_headers != NULL) 
