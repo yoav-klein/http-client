@@ -1,17 +1,23 @@
 
+#include <stdlib.h> /* exit */
 #include <stdio.h> /* printf */
 #include "http-client.h" /* http_get*/
 
 
-int main()
+int main(int argc, char **argv)
 {
 	int i = 0;
 	struct http_response *response = NULL;
 	
-/*	response = http_get("https://www.google.co.il", "User-Agent: curl/7.68.0\r\n", 0);*/
-	response = http_get("https://kanliveicy.media.kan.org.il/icy/kanbet_mp3", NULL, 1);
+	if(NULL == argv[1])
+	{
+		fprintf(stderr, "Usage: http-client.out <URL>");
+		
+		exit(0);
+	}
 	
-	fprintf(stderr, "status line: %s\n", response->status_text);
+	response = http_get(argv[1], NULL, 1);
+	
 	fprintf(stderr, "status: %d\n", response->status_code_int);
 	
 	fprintf(stderr, "Headers:\n");
