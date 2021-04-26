@@ -435,32 +435,7 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl, int i
 	}
 	
 	hresp->body = data;
-	/*
 	
-	char buffer[BUFSIZ];
-	size_t recived_len = 0;
-	int is_first_buffer = 1;
-	
-	while((recived_len = recv(sock, buffer, BUFSIZ-1, 0)) > 0)
-	{	
-		process_buffer(buffer, recived_len, is_first_buffer);
-		is_first_buffer = 0;
-	}
-	if (recived_len < 0)
-    	{
-		free(http_headers);
-		#ifdef _WIN32
-			closesocket(sock);
-		#else
-			close(sock);
-		#endif
-	   printf("Unabel to recieve");
-		return NULL;
-    	}
-
-	/* Reallocate response */
-	/*response = (char*)realloc(response, strlen(response) + 1);
-*/
 	/* Close socket */
 	#ifdef _WIN32
 		closesocket(sock);
