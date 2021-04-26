@@ -7,7 +7,8 @@
 
 struct http_headers 
 {
-	char *headers[100];
+	#define MAX_HEADERS (100)
+	char *headers[MAX_HEADERS];
 };
 
 struct http_response

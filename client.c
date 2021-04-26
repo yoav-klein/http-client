@@ -23,5 +23,7 @@ int main()
 	fprintf(stderr, "Body:\n");
 	printf("%s", response->body);
 	
+	http_response_free(response);
+	
 	return 0;
 }

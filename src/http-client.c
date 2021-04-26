@@ -534,6 +534,17 @@ struct http_response* http_get(char *url, char *custom_headers, int is_stream)
 /*
 	Free memory of http_response
 */
+void free_headers(struct http_headers *headers)
+{
+	int i = 0;
+	while(NULL != headers->headers[i])
+	{
+		free(headers->headers[i]);
+		
+		++i;
+	}
+}
+
 void http_response_free(struct http_response *hresp)
 {
 	if(hresp != NULL)
@@ -543,7 +554,10 @@ void http_response_free(struct http_response *hresp)
 		if(hresp->status_code != NULL) free(hresp->status_code);
 		if(hresp->status_text != NULL) free(hresp->status_text);
 		if(hresp->request_headers != NULL) free(hresp->request_headers);
-		if(hresp->response_headers != NULL) free(hresp->response_headers);
+		if(hresp->response_headers != NULL) 
+		{
+			free_headers(hresp->response_headers);
+		}
 		free(hresp);
 	}
 }
