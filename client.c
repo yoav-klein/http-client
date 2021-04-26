@@ -8,7 +8,8 @@ int main()
 	int i = 0;
 	struct http_response *response = NULL;
 	
-	response = http_get("https://www.google.co.il", "User-Agent: curl/7.68.0\r\n", 0);
+/*	response = http_get("https://www.google.co.il", "User-Agent: curl/7.68.0\r\n", 0);*/
+	response = http_get("https://kanliveicy.media.kan.org.il/icy/kanbet_mp3", NULL, 1);
 	
 	fprintf(stderr, "status line: %s\n", response->status_text);
 	fprintf(stderr, "status: %d\n", response->status_code_int);

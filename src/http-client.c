@@ -136,12 +136,11 @@ struct chunk read_chunk(int sock)
 	
 	/* read_until allocates memory*/
 	free(chunk_size_str);
-
-	#define MAX_CHUNK (20000)
-	char *buffer = malloc(MAX_CHUNK);
+	
+	char *buffer = malloc(chunk_size);
 	if(NULL == buffer)
 	{
-		perror("read_chunk");
+		perror("read_chunk: malloc");
 		
 		chunk.data = NULL;
 		return chunk;
@@ -169,7 +168,7 @@ struct chunk read_chunk(int sock)
 		free(buffer);
 		chunk.data = NULL;
 		return chunk;
-	}	
+	}
 	
 	chunk.data = buffer;
 	return chunk;
@@ -221,8 +220,6 @@ char *read_chunked_data(int sock)
 
 void *read_stream(int sock)
 {
-	char *buffer = NULL;
-	size_t total_size = 0;
 	struct chunk current_chunk = { 0 };
 		
 	while(1)
@@ -230,6 +227,7 @@ void *read_stream(int sock)
 		ssize_t written_bytes = 0;
 		/* read current chunk */
 		current_chunk = read_chunk(sock);
+		fprintf(stderr, "DEBUG: chunk size: %ld\n", current_chunk.size);
 		if(NULL == current_chunk.data)
 		{
 			return NULL;
@@ -243,7 +241,6 @@ void *read_stream(int sock)
 		
 		free(current_chunk.data);
 	} 
-	
 }
 
 char *read_unchunked_data(int sock, struct http_headers *headers)
