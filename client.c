@@ -8,19 +8,19 @@ int main()
 	int i = 0;
 	struct http_response *response = NULL;
 	
-	response = http_get("https://www.google.co.il", NULL, 0);
+	response = http_get("https://www.google.co.il", "User-Agent: curl/7.68.0\r\n", 0);
 	
-	printf("status line: %s\n", response->status_text);
-	printf("status: %d\n", response->status_code_int);
+	fprintf(stderr, "status line: %s\n", response->status_text);
+	fprintf(stderr, "status: %d\n", response->status_code_int);
 	
-	printf("Headers:\n");
+	fprintf(stderr, "Headers:\n");
 	while(NULL != response->response_headers->headers[i])
 	{
-		printf("%s\n", response->response_headers->headers[i]);
+		fprintf(stderr, "%s\n", response->response_headers->headers[i]);
 		++i;
 	}
 	
-	printf("Body:\n");
+	fprintf(stderr, "Body:\n");
 	printf("%s", response->body);
 	
 	return 0;
