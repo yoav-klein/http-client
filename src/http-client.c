@@ -208,6 +208,9 @@ char *read_chunked_data(int sock)
 			return NULL;
 		}
 		
+		/* free the chunk */
+		free(current_chunk.data);
+		
 		total_size += current_chunk.size;
 		
 	} 
