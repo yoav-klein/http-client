@@ -78,10 +78,10 @@ char *read_until(int sock, const char *delim, int include_delim)
 	return NULL;
 }
 
-char *read_all(int sock, size_t length)
+char *read_all(int sock, char *buffer, size_t length)
 {
 	int read_bytes = 0;
-	char *buffer = malloc(length);
+	
 	if(NULL == buffer)
 	{
 		return NULL;

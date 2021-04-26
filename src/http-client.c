@@ -41,7 +41,7 @@ int create_connection(struct parsed_url *purl)
 {
 	int sock = 0;
 	int tmpres = 0;
-	struct sockaddr_in *remote;
+	struct sockaddr_in remote;
 	
 	/* Create TCP socket */
 	if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
@@ -51,9 +51,8 @@ int create_connection(struct parsed_url *purl)
 	}
 
 	/* Set remote->sin_addr.s_addr */
-	remote = (struct sockaddr_in *)malloc(sizeof(struct sockaddr_in *));
-	remote->sin_family = AF_INET;
-  	tmpres = inet_pton(AF_INET, purl->ip, (void *)(&(remote->sin_addr.s_addr)));
+	remote.sin_family = AF_INET;
+  	tmpres = inet_pton(AF_INET, purl->ip, &remote.sin_addr.s_addr);
   	if( tmpres < 0)
   	{
 	    	printf("Can't set remote->sin_addr.s_addr");
@@ -64,10 +63,10 @@ int create_connection(struct parsed_url *purl)
 		printf("Not a valid IP");
     		return 0;
   	}
-	remote->sin_port = htons(atoi(purl->port));
+	remote.sin_port = htons(atoi(purl->port));
 
 	/* Connect */
-	if(connect(sock, (struct sockaddr *)remote, sizeof(struct sockaddr)) < 0)
+	if(connect(sock, (struct sockaddr *)&remote, sizeof(struct sockaddr)) < 0)
 	{
 		printf("Could not connect");
 		return 0;
@@ -148,7 +147,7 @@ struct chunk read_chunk(int sock)
 		return chunk;
 	}
 	
-	buffer = read_all(sock, chunk_size);
+	buffer = read_all(sock, buffer, chunk_size);
 	
 	/* verify crlf after chunk */
 	char crlf[3];
@@ -156,7 +155,8 @@ struct chunk read_chunk(int sock)
 	if(2 != n)
 	{
 		perror("read_chunk: read crlf");
-
+		
+		free(buffer);
 		chunk.data = NULL;
 		return chunk;
 	}
@@ -166,6 +166,7 @@ struct chunk read_chunk(int sock)
 	{
 		fprintf(stderr, "read_chunk: didn't get crlf after chunk\n");
 		
+		free(buffer);
 		chunk.data = NULL;
 		return chunk;
 	}	
@@ -254,7 +255,14 @@ char *read_unchunked_data(int sock, struct http_headers *headers)
 	}
 	
 	length = atoi(length_str);
-	buffer = read_all(sock, length);
+	buffer = malloc(length);
+	if(NULL == buffer)
+	{
+		perror("read_unchunked_data");
+		
+		return NULL;
+	}
+	buffer = read_all(sock, buffer, length);
 	
 	return buffer;
 }
@@ -289,15 +297,16 @@ char *read_data(int sock, struct http_headers *headers, int is_stream)
 
 struct http_headers *read_response_headers(int sock)
 {
-	
+	char *current_header = NULL;
 	struct http_headers *headers = (struct http_headers*)malloc(sizeof(*headers));
 	int i = 0;
 	do
 	{
-		headers->headers[i] = read_until(sock, "\r\n", 0);
+		current_header = read_until(sock, "\r\n", 0);
+		headers->headers[i] = current_header;
 		++i;
 	}
-	while(strlen(headers->headers[i - 1]));
+	while(strlen(current_header));
 	
 	headers->headers[i - 1] = NULL;
 	
@@ -557,6 +566,7 @@ void http_response_free(struct http_response *hresp)
 		if(hresp->response_headers != NULL) 
 		{
 			free_headers(hresp->response_headers);
+			free(hresp->response_headers);
 		}
 		free(hresp);
 	}

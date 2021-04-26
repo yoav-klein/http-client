@@ -3,8 +3,6 @@
 #ifndef __HTTP_CLIENT_H__
 #define __HTTP_CLIENT_H__
 
-#define MAX_HEADERS 100
-
 struct http_headers 
 {
 	#define MAX_HEADERS (100)
