@@ -1,4 +1,5 @@
 
+#include <unistd.h> /* write */
 #include <stdlib.h> /* exit */
 #include <stdio.h> /* printf */
 #include "http-client.h" /* http_get*/
@@ -35,10 +36,17 @@ void stream(char *url, char *custom_headers)
 	{
 		chunk = read_chunk(handle->sock);
 		fprintf(stderr, "chunk size: %ld\n", chunk.size);
+		
+		int written_bytes = 0;
+		while(written_bytes < chunk.size)
+		{
+			int n = write(1, chunk.data + written_bytes, chunk.size - written_bytes);
+			written_bytes += n; 
+		}
 	}
 	while(chunk.size > 0);
 	
-	http_handle_free(handle);
+	close_connection(handle);
 
 }
 

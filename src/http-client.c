@@ -30,6 +30,7 @@
 #include "http-client.h" 
 
 
+static struct http_response* http_req(char *http_headers, struct parsed_url *purl);
 
 
 
@@ -319,10 +320,10 @@ char *read_status_line(int sock)
 /*
 	gets the response status from the status_line and converts it to int
 */
-int get_response_status(const char *status_line)
+int get_response_status(const struct http_response *resp)
 {
 	int status_code = 0;
-	char *pos = index(status_line, ' ');
+	char *pos = index(resp->status_text, ' ');
 	char* status_text = ++pos;
 	
 	while(' ' != *pos)
@@ -346,6 +347,8 @@ static struct http_handle *init_connection_internal(char *req_headers, struct pa
 	char* response_data = NULL;
 	
 	struct http_headers* response_headers = NULL;
+	
+	/* Allocate memory for handle */
 	struct http_handle *handle = malloc(sizeof(*handle));
 	if(NULL == handle)
 	{
@@ -403,7 +406,7 @@ static struct http_handle *init_connection_internal(char *req_headers, struct pa
 	hresp->status_text = read_status_line(sock);
 	
 	/* extract the status code as integer */
-	response_status = get_response_status(hresp->status_text);
+	response_status = get_response_status(hresp);
 	/* check response status code */
 	if(response_status < 200 || response_status > 299)
 	{
@@ -430,7 +433,7 @@ static struct http_handle *init_connection_internal(char *req_headers, struct pa
 	return handle;
 }
 
-struct http_response* http_req(char *req_headers, struct parsed_url *purl)
+static struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 {
 	struct http_handle *handle = init_connection_internal(req_headers, purl);
 	struct http_response *response = NULL;
@@ -445,16 +448,10 @@ struct http_response* http_req(char *req_headers, struct parsed_url *purl)
 	handle->response->body = data;
 	response = handle->response;
 	
-	/* Close socket */
-	#ifdef _WIN32
-		closesocket(handle->sock);
-	#else
-		close(handle->sock);
-	#endif
+	close(handle->sock);
 	
 	/* free the handle struct */
 	free(handle);
-	
 	
 	/* Return response */
 	return response;
@@ -557,9 +554,12 @@ void free_headers(struct http_headers *headers)
 	}
 }
 
-void http_handle_free(struct http_handle *handle)
+void close_connection(struct http_handle *handle)
 {
+	/* free response */
 	http_response_free(handle->response);
+	
+	close(handle->sock);
 	
 	free(handle);
 }

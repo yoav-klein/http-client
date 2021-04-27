@@ -6,4 +6,13 @@
   sends the request to the server, reads the headers, populates
   a http_handle struct and returns it.
   
-  This is before creating a function "get_chunk" that the user can call 
+  This is before creating a function "get_chunk" that the user can call
+  
+
+0.6
+----
+- get_response_status - takes http_response* instead of char*
+- http_req - became static
+- close_connection - instead of http_handle_free
+    frees the memory and closes the socket
+
