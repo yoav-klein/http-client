@@ -3,8 +3,8 @@
 #include <stdio.h> /* printf */
 #include <string.h> /* strcmp */
 #include <stdlib.h> /* stdlib */
-#include "http-client.h"
 #include "utils.h" /* convert_hex_to_int */
+#include "http-client.h"
 
 
 char *read_until_simulation(const char *text, const char *delim, int include_delim);
@@ -13,13 +13,12 @@ char *read_until_simulation(const char *text, const char *delim, int include_del
 	else { printf("%s: FAILED\n", #x); res = 1;}
 
 
-
 struct http_headers *get_headers()
 {
 	struct http_response *resp = NULL;
 	int i = 0;
 	
-	resp = http_get("http://www.google.com", "Accept: */*\r\n", 0);
+	resp = http_get("http://www.google.com", "Accept: */*\r\n");
 	while(resp->response_headers->headers[i] != NULL)
 	{
 		++i;
@@ -59,7 +58,7 @@ int get_response_headers_check()
 	struct http_response *resp = NULL;
 	int i = 0;	
 	
-	resp = http_get("http://www.google.com", "Accept: */*\r\n", 0);
+	resp = http_get("http://www.google.com", "Accept: */*\r\n");
 	while(resp->response_headers->headers[i] != NULL)
 	{
 		++i;
@@ -116,8 +115,9 @@ int main()
 /*	TEST(get_response_headers_check);*/
 
 
-	TEST(convert_hex_to_int_check);
-	
+/*	TEST(convert_hex_to_int_check);*/
+
+
 	
 	return res;
 }
